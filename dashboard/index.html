@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Radar — pre-token protocols ranked by implied value</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="wordmark">TOKEN<b>RADAR</b></span>
+    <span class="tag" id="tag">radar-2.1</span>
+  </div>
+  <dl class="stats" id="stats"></dl>
+  <div class="tools">
+    <label class="search">
+      <span class="lbl">FIND</span>
+      <input id="q" type="search" placeholder="protocol, category, chain" autocomplete="off" spellcheck="false" aria-label="Search protocols">
+    </label>
+    <nav class="switch" id="views" aria-label="View">
+      <button type="button" data-view="board" class="on">Board</button>
+      <button type="button" data-view="live">Trading now</button>
+      <button type="button" data-view="sectors">Sector multiples</button>
+    </nav>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail" id="rail" aria-label="Filters"></aside>
+
+  <main class="stage" id="stage" tabindex="-1">
+    <div class="thead" id="thead"></div>
+    <div class="rows" id="rows" aria-live="polite"></div>
+    <div class="foot-note" id="footnote"></div>
+  </main>
+
+  <aside class="drawer" id="drawer" aria-label="Protocol detail"></aside>
+</div>
+
+<footer class="formula" id="formula"></footer>
+
+<script src="../data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
