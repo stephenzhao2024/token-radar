@@ -274,6 +274,30 @@ function gas(chain: string): { low: string; high: string } {
   return { low: '$0.03', high: '$0.60' };
 }
 
+/** The venue a reader would actually use on each chain, so a step names something. */
+const VENUES: Record<string, { swap: string; lend: string; note: string }> = {
+  Ethereum: { swap: 'Uniswap v4', lend: 'Aave v3', note: 'a mainnet transaction costs real money, so batch the steps' },
+  Base: { swap: 'Aerodrome', lend: 'Moonwell', note: 'Base fees are cents, so you can afford to rebalance' },
+  Arbitrum: { swap: 'Camelot', lend: 'Radiant', note: 'Arbitrum keeps gas in cents while liquidity is deep' },
+  Optimism: { swap: 'Velodrome', lend: 'Aave v3 on OP Mainnet', note: 'the Superchain bridge takes about 20 minutes each way' },
+  Solana: { swap: 'Jupiter', lend: 'Kamino', note: 'fees are fractions of a cent, so size matters far more than count' },
+  Binance: { swap: 'PancakeSwap', lend: 'Venus', note: 'BNB Chain fees are cents and finality is seconds' },
+  Avalanche: { swap: 'Trader Joe', lend: 'Aave v3 on Avalanche', note: 'the C-Chain costs cents and settles in about two seconds' },
+  Polygon: { swap: 'QuickSwap', lend: 'Aave v3 on Polygon', note: 'Polygon fees are fractions of a cent' },
+  Tron: { swap: 'SunSwap', lend: 'JustLend', note: 'Tron needs bandwidth or a small TRX burn per transaction' },
+  Bitcoin: { swap: 'the protocol\u2019s own mint and redeem', lend: 'the protocol\u2019s own vault', note: 'Bitcoin-side steps settle in ten-minute blocks, so plan one move per block' },
+  Monad: { swap: 'the chain\u2019s main DEX', lend: 'the chain\u2019s main money market', note: 'a young chain\u2019s liquidity is thin: check the pool depth before sizing up' },
+  Ink: { swap: 'the chain\u2019s main DEX', lend: 'the chain\u2019s main money market', note: 'an L2 with thin liquidity rewards early deposits, so enter small and early' },
+};
+
+function venue(chain: string): { swap: string; lend: string; note: string } {
+  return VENUES[chain] ?? {
+    swap: 'the largest DEX on the chain',
+    lend: 'its largest money market',
+    note: 'a smaller chain\u2019s liquidity is thin, so check the pool before sizing up',
+  };
+}
+
 /** A position size that is worth a snapshot's attention without being reckless. */
 function position(tvl: number): { text: string; low: number } {
   if (tvl >= 1e9) return { text: '$2,000 to $5,000', low: 2000 };
@@ -328,6 +352,7 @@ export function planTotal(p: SnapshotProtocol): { capital: string; gas: string; 
 function coreStep(p: SnapshotProtocol, chain: string, size: number): string | null {
   const where = `${p.name} on ${chain}`;
   const c = p.category ?? '';
+  const v = venue(chain);
   const open = `Deposit ${money(size)} of USDC`;
   switch (c) {
     case 'Risk Curators':
@@ -337,9 +362,9 @@ function coreStep(p: SnapshotProtocol, chain: string, size: number): string | nu
     case 'RWA':
       return `${open} into ${where}, or buy its yield-bearing receipt token on the secondary market if it has one, then hold past the record date: RWA snapshots weight the balance held, not the volume traded.`;
     case 'Lending':
-      return `${open} as supply on ${where}, then borrow a stablecoin against it at no more than 50% loan-to-value and supply that too, so the same capital counts twice without a liquidation risk.`;
+      return `${open} as supply on ${where}, then borrow a stablecoin against it on ${v.lend} at no more than 50% loan-to-value and supply that too, so one lot of capital counts twice without a liquidation risk.`;
     case 'Dexs':
-      return `Provide a two-sided LP position on ${where}: pair ${money(size)} of USDC against a blue-chip on ${chain}, use a narrow range only if you will rebalance, and leave it in place to accrue fees and TVL share.`;
+      return `Provide a two-sided LP position on ${where}: pair ${money(size)} of USDC against a blue-chip on ${chain} through ${v.swap}, use a narrow range only if you will rebalance it, and leave it in place to accrue fees and TVL share.`;
     case 'Basis Trading':
       return `${open} into ${where}'s basis vault: the vault holds spot long and perpetual short, so your exposure stays dollar-neutral while the vault's TVL grows with every deposit.`;
     case 'Yield':
@@ -351,11 +376,11 @@ function coreStep(p: SnapshotProtocol, chain: string, size: number): string | nu
     case 'Insurance':
       return `Underwrite on ${where}: deposit ${money(size)} into a cover pool for a blue-chip protocol with a short cover period, and leave it staked so the capital stays at risk and counted.`;
     case 'Collateral Markets':
-      return `${open} as collateral supply on ${where}, take a small borrow against it to prove the position is live, and leave both sides open through the snapshot.`;
+      return `${open} as collateral supply on ${where}, take a small borrow against it on ${v.lend} to prove the position is live, and leave both sides open through the snapshot.`;
     case 'Governance Incentives':
       return `${open} or delegate into ${where}'s incentive programme, then vote on at least one proposal so the address shows as an active participant, not a passive balance.`;
     case 'Chain':
-      return `Bridge ${money(size)} onto ${where}, swap twice on its main DEX, and leave the balance there: a chain's snapshots weight the assets that stayed, and a bridge-and-leave is the cheapest way to hold them.`;
+      return `Bridge ${money(size)} onto ${where}, swap twice through ${v.swap}, and leave the balance there: a chain's snapshots weight the assets that stayed, and bridging in and holding is the cheapest way to hold them.`;
     case 'Payments':
       return `Route ${money(size)} of real payment volume through ${where} over several weeks rather than one transfer, and keep the receiving address active: payment networks count distinct settled transfers.`;
     case 'Staking Pool':
@@ -374,6 +399,7 @@ function coreStep(p: SnapshotProtocol, chain: string, size: number): string | nu
 export function farmSteps(p: SnapshotProtocol, age: number | null): Step[] {
   const chain = primaryChain(p);
   const g = gas(chain);
+  const v = venue(chain);
   const size = position(p.tvl_usd);
   const core = coreStep(p, chain, size.low);
   const steps: Step[] = [];
@@ -381,12 +407,17 @@ export function farmSteps(p: SnapshotProtocol, age: number | null): Step[] {
     steps.push({ text: core, cost: `${size.text} of capital, plus ${g.low} to ${g.high} in gas`, time: '10 to 25 minutes, once' });
   }
   steps.push({
-    text: `Fund the address from a wallet you will keep: send the capital to one ${chain} address in a single transfer, and use that same address for every later step so a snapshot's address list finds the whole position in one place.`,
+    text: `Fund the address from a wallet you will keep: send the capital to one ${chain} address in a single transfer, and use that same address for every later step so a snapshot's address list finds the whole position in one place. On ${chain}, ${v.note}.`,
     cost: `${g.low} to ${g.high} in gas`,
     time: '3 to 5 minutes',
   });
+  const flow = p.change_7d === null
+    ? 'no seven-day figure is on record for it, so treat the flow as flat and let size and time carry the position'
+    : p.change_7d >= 0
+      ? `its TVL is up ${p.change_7d.toFixed(1)}% on the week, so enter now rather than after the next print`
+      : `its TVL is down ${Math.abs(p.change_7d).toFixed(1)}% on the week, so enter at half size and add only after two weekly prints above zero`;
   steps.push({
-    text: `Wait out a full season before you judge it: a token-less protocol tracked for ${age === null ? 'an unrecorded time' : `${age} days`} is usually snapshotted monthly or quarterly, so hold the position for at least ${age !== null && age > 1100 ? 'two quarters' : 'one quarter'} and do not rotate the capital between pools.`,
+    text: `Time the entry: ${flow}. A protocol that has run ${age === null ? 'an unrecorded time' : `${age} days`} with no token is usually snapshotted monthly or quarterly, so plan to hold for at least ${age !== null && age > 1100 ? 'two quarters' : 'one quarter'} and do not rotate the capital between pools.`,
     cost: '$0 while held',
     time: '90 days or more',
   });
