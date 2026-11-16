@@ -122,6 +122,7 @@ export interface Radar {
     tvl: number; chg: number | null; mcap: number | null; listed: string | null; age: number | null;
     watch: boolean; band: string; implied: number; sector: number; sectorBasis: string;
     growth: number; maturity: number; steps: Step[];
+    why: string; total: { capital: string; gas: string; time: string };
   }[];
   live: Live[];
 }
@@ -287,6 +288,40 @@ function money(n: number): string {
   if (n >= 1e6) return `$${round(n / 1e6, 1)}M`;
   if (n >= 1e3) return `$${round(n / 1e3, 1)}K`;
   return `$${Math.round(n)}`;
+}
+
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]!);
+}
+
+/** One sentence a reader can check against the numbers above it. */
+export function whyLine(
+  row: { rank: number; rows: number; name: string; category: string | null; tvl_usd: number; change_7d: number | null; age_days: number | null; watchlist: boolean; hasPeers: boolean; multiplier: number },
+): string {
+  const parts: string[] = [];
+  parts.push(`${money(row.tvl_usd)} of TVL at the snapshot block`);
+  parts.push(row.change_7d === null ? 'no seven-day figure on record' : `${row.change_7d >= 0 ? 'up' : 'down'} ${Math.abs(row.change_7d).toFixed(1)}% on the week`);
+  parts.push(row.age_days === null ? 'tracked for an unrecorded time' : `tracked ${row.age_days} days with no token`);
+  const head = `${row.rank === 1 ? 'Top of the board' : `${ordinal(row.rank)} of ${row.rows}`}`;
+  const where = row.watchlist ? 'on the house watchlist' : 'below the house floor but still launchable';
+  const tail = row.hasPeers
+    ? `its category gives a ×${row.multiplier.toFixed(3)} multiple from its own trading members`
+    : `its category has no three trading peers, so the whole snapshot's ×${row.multiplier.toFixed(3)} applies`;
+  return `${head}, ${where}: ${parts.join(', ')}; ${tail}.`;
+}
+
+/** What the plan asks of the reader, in one place. */
+export function planTotal(p: SnapshotProtocol): { capital: string; gas: string; time: string } {
+  const chain = primaryChain(p);
+  const g = gas(chain);
+  const size = position(p.tvl_usd);
+  return {
+    capital: `${size.text} of capital`,
+    gas: `${g.low} to ${g.high} a move`,
+    time: 'about 2 hours up front, then 5 minutes a week and 10 minutes a month',
+  };
 }
 
 /** The deposit-shaped core of a farm plan, by what the protocol actually does. */
@@ -511,6 +546,19 @@ export function buildRadar(snapshot: Snapshot, model: Model = MODEL): { rows: Ro
         sectorBasis: bySector.get(r.sector_source)?.basis ?? 'the whole snapshot',
         growth: r.growth_multiple,
         maturity: r.maturity_multiple,
+        why: whyLine({
+          rank: r.rank,
+          rows: rows.length,
+          name: r.name,
+          category: r.category,
+          tvl_usd: r.tvl_usd,
+          change_7d: r.change_7d,
+          age_days: r.age_days,
+          watchlist: r.watchlist,
+          hasPeers: bySector.get(r.sector_source)?.basis.startsWith('median of') === true,
+          multiplier: r.sector_multiple,
+        }),
+        total: planTotal(snapshot.protocols.find((p) => p.slug === r.slug)!),
         steps: farmSteps(
           snapshot.protocols.find((p) => p.slug === r.slug)!,
           r.age_days,

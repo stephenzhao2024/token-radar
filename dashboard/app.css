@@ -454,6 +454,32 @@ body {
 }
 .d-head .meta b { color: var(--text-2); font-weight: 500; }
 
+.why {
+  margin: 11px 0 0;
+  font: 400 12px/1.6 var(--sans);
+  color: #b6c6d8;
+  padding-left: 10px;
+  border-left: 2px solid #2a3a4e;
+}
+.why:hover { border-left-color: var(--amber-dim); }
+
+.plantotal {
+  margin-top: 13px;
+  padding: 10px 12px;
+  border: 1px dashed #26333f;
+  border-radius: var(--r);
+  background: #0c1219;
+}
+.plantotal > span {
+  display: block;
+  font: 500 9px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 7px;
+}
+.plantotal .t { display: flex; flex-wrap: wrap; gap: 6px; }
+
 .value-block {
   margin: 13px 0 2px;
   padding: 12px 13px;

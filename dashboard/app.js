@@ -431,6 +431,9 @@
     head.appendChild(meta2);
     d.appendChild(head);
 
+    var why = el('p', 'why', row.why);
+    d.appendChild(why);
+
     var vb = el('div', 'value-block');
     vb.appendChild(el('div', 'lbl', 'Implied token value'));
     vb.appendChild(el('div', 'v', full(row.implied)));
@@ -482,6 +485,15 @@
       plan.appendChild(li);
     });
     d.appendChild(plan);
+
+    var total = el('div', 'plantotal');
+    total.appendChild(el('span', null, 'The whole plan'));
+    var t2 = el('div', 't');
+    t2.appendChild(el('i', 'c', row.total.capital));
+    t2.appendChild(el('i', 'c', row.total.gas));
+    t2.appendChild(el('i', null, row.total.time));
+    total.appendChild(t2);
+    d.appendChild(total);
 
     var note = el('div', 'note');
     note.textContent = 'It records no token: DefiLlama\u2019s record carries neither a ticker nor a coin id for it. That is not proof none exists \u2014 a record can lag. Implied value ranks what its figures would be worth today, and says nothing about whether or when a token is issued.';
