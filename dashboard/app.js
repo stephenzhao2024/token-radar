@@ -136,12 +136,15 @@
   function drawHero() {
     var host = $('hero');
     host.textContent = '';
-    var top = R.rows[0];
+    var used = null;
+    for (var i = 0; i < R.tests.length; i++) if (R.tests[i].name === R.variant) used = R.tests[i];
+    var miss = used ? used.miss : 0;
+    var within = used ? Math.round(used.within3 * 100) : 0;
     var tiles = [
-      ['Record no token', String(R.counts.launchable), 'protocols at any size, of ' + R.counts.protocols + ' in the snapshot'],
-      ['Their TVL at stake', compact(R.counts.watchlist_tvl), R.counts.watchlist + ' on the watchlist, ' + R.counts.below_floor + ' more below the floor'],
-      ['Largest implied value', compact(top.implied), top.name + ', rank 1 of ' + R.rows.length],
-      ['Whole-snapshot multiple', mult(R.sectors[R.sectors.length - 1].multiple), 'median cap/TVL across ' + R.sectors[R.sectors.length - 1].peers + ' trading protocols']
+      ['Record no token', String(R.counts.launchable), 'of ' + R.counts.protocols + ' protocols in the snapshot, at any size'],
+      ['On a $1,000 ticket', String(R.counts.farm), 'pay for themselves; ' + R.counts.thin + ' more barely do, ' + R.counts.skip + ' do not, after gas and the capital\u2019s own yield'],
+      ['Best per hour', (R.counts.best_per_hour >= 0 ? '+' : '\u2212') + '$' + Math.abs(R.counts.best_per_hour).toFixed(2), R.counts.best_name + ', net of every cost the plan names'],
+      ['Blind miss', '\u00d7' + miss, within + '% land within three times, over ' + R.blind_n + ' held-out tokens']
     ];
     tiles.forEach(function (t, i) {
       var d = el('div');
@@ -150,6 +153,78 @@
       d.appendChild(el('div', 's', t[2]));
       host.appendChild(d);
     });
+  }
+
+  /* ── the method panel: what the page stands on, shown when no row is open ── */
+
+  function drawMethod() {
+    var d = $('drawer');
+    var head = el('div', 'm-head');
+    head.appendChild(el('div', 'kicker', 'the method'));
+    head.appendChild(el('h1', null, 'How a launch is priced'));
+    d.appendChild(head);
+
+    var f = R.fit;
+    var formula = el('div', 'formula-box');
+    formula.appendChild(el('div', 'fb-1', 'implied = ' + f.a + ' \u00d7 TVL^' + f.b));
+    formula.appendChild(el('div', 'fb-2', '\u00d7 sector \u00d7 flow \u00d7 record'));
+    formula.appendChild(el('div', 'fb-3', 'fitted on the ' + f.n + ' protocols in this snapshot whose token already trades, r\u00b2 ' + f.r2));
+    d.appendChild(formula);
+
+    var rows = el('div', 'facs');
+    var addFac = function (name, detail, items) {
+      var row = el('div', 'fac');
+      row.appendChild(el('span', 'fn', name));
+      row.appendChild(el('span', 'fd', detail));
+      var box = el('div', 'fv');
+      items.forEach(function (it) {
+        var c = el('i', null, it[0] + ' ' + mult(it[1]));
+        box.appendChild(c);
+      });
+      row.appendChild(box);
+      rows.appendChild(row);
+    };
+    addFac('size', 'the market\u2019s own curve over TVL, in dollars of market cap per protocol', []);
+    addFac('sector', 'how the category trades against that curve, shrunk by twenty pseudo-peers', R.sectors.slice(0, 4).map(function (s) { return [s.category, s.adj]; }));
+    addFac('flow', 'seven-day TVL change, bucketed', [['down', R.factors.flow.shrinking], ['flat', R.factors.flow.flat], ['up', R.factors.flow.growing], ['up hard', R.factors.flow.surging]]);
+    addFac('record', 'how long it has run with no token, in months', [['<6', R.factors.age.new], ['6\u201318', R.factors.age.forming], ['18\u201336', R.factors.age.seasoned], ['>36', R.factors.age['long-standing']]]);
+    d.appendChild(rows);
+
+    var bt = el('div', 'sect');
+    bt.appendChild(el('span', null, 'Blind test'));
+    bt.appendChild(el('span', null, 'miss / within 3\u00d7'));
+    d.appendChild(bt);
+    var table = el('div', 'btest');
+    R.tests.forEach(function (t) {
+      var row = el('div', 'btr' + (t.name === R.variant ? ' on' : ''));
+      row.appendChild(el('span', null, t.name));
+      row.appendChild(el('b', null, '\u00d7' + t.miss));
+      row.appendChild(el('i', null, Math.round(t.within3 * 100) + '%'));
+      table.appendChild(row);
+    });
+    d.appendChild(table);
+
+    var fn = el('div', 'sect');
+    fn.appendChild(el('span', null, 'Farm next'));
+    fn.appendChild(el('span', null, 'net / hour'));
+    d.appendChild(fn);
+    var list = el('div', 'farmnext');
+    R.farm_next.forEach(function (x) {
+      var row = el('div');
+      var b = el('button', 'link', x.name);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        var found = R.rows.filter(function (r) { return r.name === x.name; })[0];
+        if (found) { state.detail = found.slug; render(); }
+      });
+      row.appendChild(b);
+      row.appendChild(el('i', null, '#' + x.rank));
+      row.appendChild(el('b', null, (x.per_hour >= 0 ? '+' : '\u2212') + '$' + Math.abs(x.per_hour).toFixed(2) + '/h'));
+      list.appendChild(row);
+    });
+    d.appendChild(list);
+
+    d.appendChild(el('div', 'note', 'Each trading token is left out in turn, every parameter refitted without it, and its own market cap asked back. The row an arrow marks is the one the board uses: a hair behind the bare size curve on the typical miss, ahead of every variant on how often it lands within three times, so flow and record earn their place. Implied value is this entry\u2019s own claim, never a forecast that a token is issued and never make.fun\u2019s; a protocol that records no token may still have one its record does not carry.'));
   }
 
   /* ── the chart: TVL against implied value, iso-multiple diagonals ── */
@@ -243,13 +318,13 @@
     head.textContent = '';
     var left = el('span');
     left.appendChild(el('b', null, 'Size against implied value'));
-    left.appendChild(document.createTextNode(' \u00b7 a dot above a diagonal is worth more than that multiple of its TVL'));
+    left.appendChild(document.createTextNode(' \u00b7 above a diagonal is worth more than that multiple of TVL'));
     head.appendChild(left);
     var right = el('span', 'legend');
     right.appendChild(el('i', 'k', ''));
     right.appendChild(document.createTextNode('watchlist '));
     right.appendChild(el('i', 'b', ''));
-    right.appendChild(document.createTextNode('below the floor \u00b7 ' + rows.length + ' plotted'));
+    right.appendChild(document.createTextNode('below floor \u00b7 ' + rows.length));
     head.appendChild(right);
   }
 
@@ -326,12 +401,10 @@
 
   var COLUMNS = [
     { key: null, label: '#', cls: 'r' },
-    { key: 'name', label: 'Protocol', cls: 's' },
-    { key: 'tvl', label: 'TVL', cls: 's r' },
-    { key: 'chg', label: '7d flow', cls: 's r' },
-    { key: 'ratio', label: 'Mult', cls: 's r' },
-    { key: 'implied', label: 'Implied token value', cls: 's r' },
-    { key: 'age', label: 'Record', cls: 's r' }
+    { key: 'name', label: 'Protocol \u00b7 strategy \u00b7 TVL \u00b7 7d', cls: 's' },
+    { key: 'implied', label: 'Implied value, P10 to P90', cls: 's r' },
+    { key: null, label: 'Slice $1k', cls: 'r' },
+    { key: null, label: 'Net', cls: 'r' }
   ];
 
   function drawHead() {
@@ -374,22 +447,23 @@
       var who = el('span', 'who');
       who.appendChild(el('b', null, r.name));
       var sub = el('span');
-      sub.appendChild(el('em', null, r.category || 'Uncategorised'));
-      sub.appendChild(document.createTextNode(' \u00b7 ' + r.chains.slice(0, 3).join(' / ') + (r.chains.length > 3 ? ' +' + (r.chains.length - 3) : '')));
+      sub.appendChild(el('em', null, r.strategy));
+      sub.appendChild(el('i', 'sep', ' \u00b7 ' + compact(r.tvl) + ' \u00b7 '));
+      var flow = el('i', 'fl ' + (r.chg === null ? '' : r.chg >= 0 ? 'up' : 'down'));
+      flow.textContent = r.chg === null ? 'no 7d' : (r.chg >= 0 ? '\u25b2' : '\u25bc') + Math.abs(r.chg).toFixed(1) + '%';
+      sub.appendChild(flow);
       who.appendChild(sub);
       b.appendChild(who);
-      b.appendChild(el('span', 'n', compact(r.tvl)));
-      var flow = el('span', 'pill ' + (r.chg === null ? '' : r.chg >= 0 ? 'up' : 'down'));
-      flow.textContent = r.chg === null ? '\u00b7' : (r.chg >= 0 ? '\u25b2 ' : '\u25bc ') + Math.abs(r.chg).toFixed(1) + '%';
-      b.appendChild(flow);
-      b.appendChild(el('span', 'mult', mult(r.implied / Math.max(r.tvl, 1))));
       var bar = el('span', 'bar');
       bar.style.setProperty('--w', Math.max(4, Math.round((r.implied / max) * 100)) + '%');
       bar.appendChild(el('span', null, compact(r.implied)));
+      bar.appendChild(el('u', 'rng', compact(r.low) + '\u2013' + compact(r.high)));
       b.appendChild(bar);
-      var bandCol = el('span', 'bandcol');
-      bandCol.appendChild(el('span', 'bnd ' + r.band, r.band.replace('-', ' ')));
-      b.appendChild(bandCol);
+      b.appendChild(el('span', 'n', '$' + r.econ.slice_usd.toFixed(2)));
+      var verdict = el('span', 'v ' + r.econ.verdict);
+      verdict.appendChild(el('b', null, (r.econ.verdict === 'farm' ? 'FARM ' : r.econ.verdict === 'thin' ? 'THIN ' : 'SKIP ') + (r.econ.net_usd >= 0 ? '+' : '\u2212') + '$' + Math.abs(r.econ.net_usd).toFixed(2)));
+      verdict.appendChild(el('i', null, (r.econ.per_hour >= 0 ? '+' : '\u2212') + '$' + Math.abs(r.econ.per_hour).toFixed(2) + '/h'));
+      b.appendChild(verdict);
       b.addEventListener('click', function () { state.detail = state.detail === r.slug ? null : r.slug; render(); });
       frag.appendChild(b);
     });
@@ -488,7 +562,10 @@
     d.textContent = '';
     var row = null;
     for (var i = 0; i < R.rows.length; i++) if (R.rows[i].slug === state.detail) row = R.rows[i];
-    if (!row) return;
+    if (!row) {
+      drawMethod();
+      return;
+    }
 
     var bar = el('div', 'dbar');
     bar.appendChild(el('span', null, 'Protocol dossier'));
@@ -517,16 +594,31 @@
     var vb = el('div', 'value-block');
     vb.appendChild(el('div', 'lbl', 'Implied token value'));
     vb.appendChild(el('div', 'v', full(row.implied)));
-    vb.appendChild(el('div', 'sub', 'if ' + row.name + '\u2019s record stood still: TVL \u00d7 the trading multiple of its category \u00d7 its flow \u00d7 its record'));
+    vb.appendChild(el('div', 'sub', 'if ' + row.name + '\u2019s record stood still: the market\u2019s size curve, its category against that curve, its flow and its record, multiplied out'));
     d.appendChild(vb);
 
     var der = el('div', 'derive');
     der.appendChild(stepLine('TVL at the snapshot block', full(row.tvl), false));
-    der.appendChild(stepLine('\u00d7 ' + (row.category || 'every category') + ' multiple, ' + row.sectorBasis, mult(row.sector), true));
-    der.appendChild(stepLine('\u00d7 flow, TVL over seven days at ' + pct(row.chg), mult(row.growth), true));
-    der.appendChild(stepLine('\u00d7 record, ' + days(row.age), mult(row.maturity), true));
+    der.appendChild(stepLine('size curve, ' + R.fit.a + ' \u00d7 TVL^' + R.fit.b, full(row.curve), true));
+    der.appendChild(stepLine('\u00d7 sector, ' + (row.category || 'all categories') + ' against that curve', mult(row.adj), true));
+    der.appendChild(stepLine('\u00d7 flow, TVL over seven days at ' + pct(row.chg), mult(row.flowf), true));
+    der.appendChild(stepLine('\u00d7 record, ' + days(row.age), mult(row.agef), true));
     der.appendChild(stepLine('implied token value', full(row.implied), false, true));
+    der.appendChild(stepLine('P10 to P90 on the blind miss', compact(row.low) + ' \u2013 ' + compact(row.high), false));
     d.appendChild(der);
+
+    var econ = el('div', 'econ ' + row.econ.verdict);
+    var eh = el('div', 'eh');
+    eh.appendChild(el('span', null, 'On a $1,000 ticket'));
+    eh.appendChild(el('b', null, row.econ.verdict.toUpperCase() + '  ' + (row.econ.net_usd >= 0 ? '+' : '\u2212') + '$' + Math.abs(row.econ.net_usd).toFixed(2)));
+    econ.appendChild(eh);
+    var el2 = el('div', 'el');
+    el2.appendChild(el('i', null, 'airdrop slice $' + row.econ.slice_usd.toFixed(2)));
+    el2.appendChild(el('i', null, '\u2212 gas $' + row.econ.gas_usd.toFixed(2)));
+    el2.appendChild(el('i', null, '\u2212 capital $' + row.econ.capital_usd.toFixed(2)));
+    el2.appendChild(el('i', null, '\u00f7 ' + row.econ.hours + ' h = ' + (row.econ.per_hour >= 0 ? '+' : '\u2212') + '$' + Math.abs(row.econ.per_hour).toFixed(2) + ' an hour'));
+    econ.appendChild(el2);
+    d.appendChild(econ);
 
     var peerHead = el('div', 'sect');
     peerHead.appendChild(el('span', null, 'The multiple, from the market'));
@@ -581,10 +673,10 @@
     var f = $('formula');
     f.textContent = '';
     [
-      ['implied value', 'TVL \u00d7 sector multiple \u00d7 flow \u00d7 record'],
-      ['sector multiple', 'median cap/TVL of that category\u2019s trading protocols'],
-      ['flow', '1 + 0.5 \u00d7 7d change, clamped to \u221260% \u2026 +120%'],
-      ['record', '0.55 + 0.45 \u00d7 (1 \u2212 e^\u2212age/500d)'],
+      ['implied value', R.fit.a + ' \u00d7 TVL^' + R.fit.b + ' \u00d7 sector \u00d7 flow \u00d7 record'],
+      ['fit', 'least squares on the ' + R.fit.n + ' trading tokens, r\u00b2 ' + R.fit.r2],
+      ['blind test', 'each left out and refitted: \u00d7' + (R.tests[0] ? R.tests[0].miss : '') + ' for a flat multiple, \u00d7' +
+        (function () { for (var i = 0; i < R.tests.length; i++) if (R.tests[i].name === R.variant) return R.tests[i].miss; return ''; })() + ' here'],
       ['source', R.source]
     ].forEach(function (p) {
       var s = el('span');
@@ -595,8 +687,8 @@
   }
 
   function render() {
-    var open = state.detail !== null && state.view === 'board';
-    document.querySelector('.shell').classList.toggle('wide', !open);
+    var rail = state.view === 'board';
+    document.querySelector('.shell').classList.toggle('wide', !rail);
     document.querySelectorAll('.switch button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.view === state.view);
     });
@@ -617,8 +709,8 @@
       f.appendChild(el('b', null, String(rows.length)));
       f.appendChild(document.createTextNode(
         ' of ' + R.rows.length + ' ranked rows \u00b7 ' + R.counts.watchlist + ' watchlist protocols covered \u00b7 '
-        + 'every protocol that records no token, at any size, ranked by what its token would be worth \u00b7 '
-        + 'pick a row or a dot for its derivation and farm plan'
+        + 'the largest implied values are also the largest protocols, so a $1,000 ticket buys a thin slice of them and most of the top rows skip \u00b7 '
+        + 'the ones that pay sit lower down, and Farm next names them'
       ));
     }
     drawDrawer();

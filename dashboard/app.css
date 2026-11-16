@@ -100,14 +100,8 @@ body {
 .shell.wide .drawer { display: none; }
 
 /* With the dossier open the stage keeps only what still fits, and the dossier gets the room. */
-.shell:not(.wide) .hero { display: none; }
-.shell:not(.wide) .charthead .legend { display: none; }
-.shell:not(.wide) .thead,
-.shell:not(.wide) .row { grid-template-columns: 40px minmax(140px, 1fr) 88px 66px 156px; }
-.shell:not(.wide) .thead > :nth-child(4),
-.shell:not(.wide) .thead > :nth-child(7),
-.shell:not(.wide) .row > :nth-child(4),
-.shell:not(.wide) .row > :nth-child(7) { display: none; }
+.shell.wide .hero { display: none; }
+.shell.wide .charthead .legend { display: none; }
 
 .rail { border-right: 1px solid var(--line); padding: 16px 14px 28px; overflow-y: auto; background: #080d14cc; }
 .rail h2 {
@@ -137,17 +131,17 @@ body {
 .stage { overflow: auto; outline: none; min-width: 0; padding-bottom: 40px; }
 
 .hero { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
-.hero div { background: #0a1017; padding: 13px 18px 14px; }
-.hero .k { font: 500 10px/1 var(--mono); letter-spacing: .15em; color: var(--dim); text-transform: uppercase; }
-.hero .v { margin-top: 7px; font: 600 24px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text); letter-spacing: -.01em; }
+.hero div { background: #0a1017; padding: 10px 14px 11px; }
+.hero .k { font: 500 9.5px/1 var(--mono); letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
+.hero .v { margin-top: 6px; font: 600 21px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text); letter-spacing: -.01em; }
 .hero .v.a { color: #fbd889; }
-.hero .s { margin-top: 5px; font: 400 11.5px/1.4 var(--mono); color: var(--dim); }
+.hero .s { margin-top: 4px; font: 400 10.5px/1.35 var(--mono); color: var(--dim); }
 
 .chartwrap { border-bottom: 1px solid var(--line); background: #0a0f16; }
 .charthead {
   display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
-  padding: 11px 18px 3px; font: 400 11.5px/1 var(--mono); letter-spacing: .01em;
-  color: var(--dim); white-space: nowrap;
+  padding: 10px 18px 3px; font: 400 11.5px/1 var(--mono); letter-spacing: .01em;
+  color: var(--dim); white-space: nowrap; overflow: hidden;
 }
 .charthead > span:first-child b { text-transform: uppercase; letter-spacing: .14em; font-size: 10px; }
 .charthead b { color: var(--text-2); font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12px; }
@@ -162,8 +156,8 @@ body {
 
 .thead, .row {
   display: grid;
-  grid-template-columns: 42px minmax(210px, 1fr) 96px 84px 76px 172px minmax(104px, auto);
-  align-items: center; gap: 12px; padding: 0 18px;
+  grid-template-columns: 44px minmax(210px, 1fr) 186px 84px 104px;
+  align-items: center; gap: 14px; padding: 0 18px;
 }
 .thead {
   position: sticky; top: 0; z-index: 10; background: #0b1119f5; backdrop-filter: blur(6px);
@@ -203,6 +197,10 @@ body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .who span em { font-style: normal; color: #8fa8c4; }
+.who span i { font-style: normal; }
+.who span .sep { color: #55677d; }
+.who span .fl.up { color: #63b98f; }
+.who span .fl.down { color: #e2807a; }
 
 .n { font: 500 13.5px/1 var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--text-2); }
 .bar { position: relative; height: 26px; display: flex; align-items: center; justify-content: flex-end; }
@@ -322,6 +320,79 @@ body {
 
 .note { margin-top: 18px; padding: 11px 13px; border-left: 2px solid #2a3d52; font: 400 11.5px/1.55 var(--mono); color: #6c8098; }
 
+/* ── the method panel, always in the right rail when no row is open ── */
+
+.m-head { display: flex; flex-direction: column; gap: 7px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.m-head .kicker { font: 500 10px/1 var(--mono); letter-spacing: .17em; color: var(--amber-soft); text-transform: uppercase; }
+.m-head h1 { margin: 0; font: 600 21px/1.2 var(--sans); letter-spacing: -.015em; }
+
+.formula-box {
+  margin-top: 13px; padding: 12px 13px; border: 1px solid var(--line-2); border-radius: 6px;
+  background: linear-gradient(180deg, #1b1509, #0d1319 74%);
+}
+.formula-box .fb-1 { font: 600 15px/1.3 var(--mono); color: #fbd889; letter-spacing: -.01em; }
+.formula-box .fb-2 { font: 600 15px/1.3 var(--mono); color: #c6a45c; }
+.formula-box .fb-3 { margin-top: 8px; font: 400 11px/1.5 var(--mono); color: var(--dim); }
+
+.facs { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+.fac { display: grid; grid-template-columns: 62px 1fr; gap: 10px; align-items: start; }
+.fac .fn { font: 600 11px/1.9 var(--mono); letter-spacing: .1em; color: var(--amber); text-transform: uppercase; }
+.fac .fd { font: 400 11px/1.5 var(--mono); color: #6c8098; padding-top: 3px; }
+.fac .fv { grid-column: 2; display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.fac .fv i {
+  font: 400 10.5px/1 var(--mono); font-style: normal; color: var(--text-2);
+  border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px; background: #ffffff05;
+}
+
+.btest { margin-top: 8px; display: flex; flex-direction: column; }
+.btest .btr {
+  display: grid; grid-template-columns: 1fr 48px 42px; gap: 8px; align-items: baseline;
+  padding: 5px 0; border-bottom: 1px solid #131c26; font: 400 11.5px/1.35 var(--mono); color: var(--text-2);
+}
+.btest .btr b { font-weight: 500; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.btest .btr i { font-style: normal; color: var(--dim); text-align: right; }
+.btest .btr.on { color: #fbd889; }
+.btest .btr.on b { color: #fbd889; }
+.btest .btr.on span::before { content: "\25b8 "; color: var(--amber); }
+
+.farmnext { margin-top: 7px; display: flex; flex-direction: column; }
+.farmnext div { display: grid; grid-template-columns: 1fr 34px 62px; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid #131c26; }
+.farmnext button.link {
+  border: 0; background: none; padding: 0; text-align: left; cursor: pointer;
+  font: 500 12px/1.3 var(--sans); color: var(--text); text-decoration: underline; text-decoration-color: #2f4256;
+}
+.farmnext button.link:hover { color: #fbd889; }
+.farmnext i { font: 400 10.5px/1 var(--mono); font-style: normal; color: var(--dim); text-align: right; }
+.farmnext b { font: 500 11.5px/1 var(--mono); color: var(--up); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* per-row verdict and the slice column */
+
+.bar .rng {
+  position: absolute; left: 0; top: 50%; transform: translateY(6px);
+  font: 400 9.5px/1 var(--mono); font-style: normal; color: #5a6f88; text-decoration: none;
+  white-space: nowrap;
+}
+.v { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.v b { font: 500 10.5px/1 var(--mono); letter-spacing: .03em; white-space: nowrap; }
+.v i { font: 400 10px/1 var(--mono); font-style: normal; color: var(--dim); }
+.v.farm b { color: var(--up); }
+.v.thin b { color: #e8c46a; }
+.v.skip b { color: #8496ab; }
+
+.econ { margin-top: 13px; padding: 11px 13px; border: 1px solid var(--line-2); border-radius: 6px; background: #0d141c; }
+.econ .eh { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.econ .eh span { font: 500 10px/1 var(--mono); letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
+.econ .eh b { font: 600 13px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.econ.farm { border-color: #235244; }
+.econ.farm .eh b { color: var(--up); }
+.econ.thin .eh b { color: #e8c46a; }
+.econ.skip .eh b { color: #9dafc2; }
+.econ .el { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+.econ .el i {
+  font: 400 10.5px/1 var(--mono); font-style: normal; color: var(--text-2);
+  border: 1px solid var(--line); border-radius: 3px; padding: 4px 6px;
+}
+
 /* ── multiples view ────────────────────────────────────────────────── */
 
 .sectors { padding: 14px 18px; display: flex; flex-direction: column; }
@@ -337,8 +408,8 @@ body {
 /* ── footer ────────────────────────────────────────────────────────── */
 
 .formula {
-  border-top: 1px solid var(--line); padding: 11px 22px; font: 400 11.5px/1.55 var(--mono);
-  color: #66798e; background: #070b10; display: flex; gap: 24px; flex-wrap: wrap;
+  border-top: 1px solid var(--line); padding: 9px 22px; font: 400 11px/1.5 var(--mono);
+  color: #66798e; background: #070b10; display: flex; gap: 22px; flex-wrap: wrap;
 }
 .formula b { color: var(--text-2); font-weight: 500; }
 

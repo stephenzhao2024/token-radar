@@ -86,6 +86,8 @@ writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: TEX
 const top = rows[0]!;
 process.stdout.write(
   `radar: ${snapshot.protocols.length} protocols, ${radar.counts.launchable} launchable, ${snapshot.watchlist.length} on the watchlist, ${rows.length} rows ranked\n` +
-  `radar: top of the board is ${top.name} at ${top.implied_value_usd} USD implied (TVL ${top.tvl_usd}, x${top.sector_multiple} sector, x${top.growth_multiple} growth, x${top.maturity_multiple} maturity)\n` +
+  `radar: model ${radar.variant} (fit ${radar.fit.a} x TVL^${radar.fit.b}, r2 ${radar.fit.r2}, blind miss x${radar.tests.find((t) => t.name === radar.variant)?.miss})\n` +
+  `radar: top of the board is ${top.name} at ${top.implied_value_usd} USD implied (range ${top.low_usd} to ${top.high_usd}), farming it nets ${top.econ.net_usd} USD\n` +
+  `radar: on a ${radar.model.ticket_usd} ticket: ${radar.counts.farm} farm, ${radar.counts.thin} thin, ${radar.counts.skip} skip; best ${radar.counts.best_name} at ${radar.counts.best_per_hour} USD an hour\n` +
   `radar: wrote board.json, data.js, dashboard (${page.length} files), screenshots (${shots.length}) and dossier.json to ${out}\n`,
 );
