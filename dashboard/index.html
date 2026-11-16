@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar — pre-token protocols ranked by implied value</title>
+<title>Token Radar — every token-less protocol, ranked by implied value</title>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -22,7 +22,7 @@
     <nav class="switch" id="views" aria-label="View">
       <button type="button" data-view="board" class="on">Board</button>
       <button type="button" data-view="live">Trading now</button>
-      <button type="button" data-view="sectors">Sector multiples</button>
+      <button type="button" data-view="sectors">Multiples</button>
     </nav>
   </div>
 </header>
@@ -31,6 +31,11 @@
   <aside class="rail" id="rail" aria-label="Filters"></aside>
 
   <main class="stage" id="stage" tabindex="-1">
+    <section class="hero" id="hero" aria-label="What the snapshot says"></section>
+    <section class="chartwrap" id="chartwrap" aria-label="Size against implied value">
+      <div class="charthead" id="charthead"></div>
+      <div class="chart" id="chart"></div>
+    </section>
     <div class="thead" id="thead"></div>
     <div class="rows" id="rows" aria-live="polite"></div>
     <div class="foot-note" id="footnote"></div>

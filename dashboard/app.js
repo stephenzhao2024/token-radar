@@ -1,6 +1,6 @@
-/* Token Radar — the page. Reads window.RADAR (written by main.ts beside this file), renders the
-   ranked board, the filters, the sector multiples and the trading-now set, and opens a detail
-   view for one protocol. No network, no framework, no imports. */
+/* Token Radar — the page. Reads window.RADAR (written by main.ts beside this file) and renders
+   the board, the size-against-value chart, the filters, the multiples table and one protocol's
+   dossier. No network, no framework, no imports. */
 
 (function () {
   'use strict';
@@ -13,41 +13,27 @@
     if (text !== undefined && text !== null) n.textContent = String(text);
     return n;
   };
+  var SVG = 'http://www.w3.org/2000/svg';
 
   /* ── formatting ──────────────────────────────────────────────────── */
 
-  var compact = (function () {
-    var units = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
-    return function (n) {
-      if (!isFinite(n)) return '—';
-      var abs = Math.abs(n);
-      if (abs >= 1e3) {
-        for (var i = 0; i < units.length; i++) {
-          var at = units[i][0];
-          if (abs >= at) {
-            var v = n / at;
-            return '$' + (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2)) + units[i][1];
-          }
-        }
-      }
-      return '$' + Math.round(n);
-    };
-  })();
+  function compact(n) {
+    if (!isFinite(n)) return '\u2014';
+    var abs = Math.abs(n);
+    if (abs >= 1e12) return '$' + (n / 1e12).toFixed(2) + 'T';
+    if (abs >= 1e9) return '$' + (n / 1e9).toFixed(Math.abs(n / 1e9) >= 100 ? 0 : 2) + 'B';
+    if (abs >= 1e6) return '$' + (n / 1e6).toFixed(Math.abs(n / 1e6) >= 100 ? 0 : 1) + 'M';
+    if (abs >= 1e3) return '$' + Math.round(n / 1e3) + 'K';
+    return '$' + Math.round(n);
+  }
 
   function full(n) {
-    if (!isFinite(n)) return '—';
+    if (!isFinite(n)) return '\u2014';
     return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
-  function pct(v) {
-    if (v === null || v === undefined) return 'n/a';
-    return (v > 0 ? '+' : '') + v.toFixed(1) + '%';
-  }
-
-  function mult(v) {
-    if (!isFinite(v)) return '—';
-    return '×' + (v >= 1 ? v.toFixed(2) : v.toFixed(3));
-  }
+  function pct(v) { return v === null || v === undefined ? 'n/a' : (v > 0 ? '+' : '') + v.toFixed(1) + '%'; }
+  function mult(v) { return !isFinite(v) ? '\u2014' : '\u00d7' + (v >= 1 ? v.toFixed(2) : v.toFixed(3)); }
 
   function days(n) {
     if (n === null || n === undefined) return 'age unrecorded';
@@ -58,17 +44,7 @@
 
   /* ── state ───────────────────────────────────────────────────────── */
 
-  var state = {
-    view: 'board',
-    q: '',
-    cats: {},
-    chains: {},
-    bands: {},
-    watch: false,
-    sort: 'implied',
-    dir: 'desc',
-    detail: null,
-  };
+  var state = { view: 'board', q: '', cats: {}, chains: {}, bands: {}, watch: false, sort: 'implied', dir: 'desc', detail: null };
 
   var SORTS = {
     implied: function (r) { return r.implied; },
@@ -76,7 +52,7 @@
     chg: function (r) { return r.chg === null ? -1e9 : r.chg; },
     ratio: function (r) { return r.implied / Math.max(r.tvl, 1); },
     age: function (r) { return r.age === null ? -1 : r.age; },
-    name: function (r) { return r.name.toLowerCase(); },
+    name: function (r) { return r.name.toLowerCase(); }
   };
 
   function readUrl() {
@@ -157,6 +133,125 @@
     box.appendChild(stat('Trading now', String(R.counts.live), 'protocols'));
     box.appendChild(stat('Categories', String(R.counts.categories)));
   }
+  function drawHero() {
+    var host = $('hero');
+    host.textContent = '';
+    var top = R.rows[0];
+    var tiles = [
+      ['Record no token', String(R.counts.launchable), 'protocols at any size, of ' + R.counts.protocols + ' in the snapshot'],
+      ['Their TVL at stake', compact(R.counts.watchlist_tvl), R.counts.watchlist + ' on the watchlist, ' + R.counts.below_floor + ' more below the floor'],
+      ['Largest implied value', compact(top.implied), top.name + ', rank 1 of ' + R.rows.length],
+      ['Whole-snapshot multiple', mult(R.sectors[R.sectors.length - 1].multiple), 'median cap/TVL across ' + R.sectors[R.sectors.length - 1].peers + ' trading protocols']
+    ];
+    tiles.forEach(function (t, i) {
+      var d = el('div');
+      d.appendChild(el('div', 'k', t[0]));
+      d.appendChild(el('div', 'v' + (i === 2 ? ' a' : ''), t[1]));
+      d.appendChild(el('div', 's', t[2]));
+      host.appendChild(d);
+    });
+  }
+
+  /* ── the chart: TVL against implied value, iso-multiple diagonals ── */
+
+  function drawChart(rows) {
+    var host = $('chart');
+    host.textContent = '';
+    if (!rows.length) return;
+    var W = Math.max(host.clientWidth || 900, 480);
+    var H = 190;
+    var m = { l: 60, r: 18, t: 12, b: 26 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    var lg = Math.log10;
+    var xs = rows.map(function (r) { return lg(Math.max(r.tvl, 1)); });
+    var ys = rows.map(function (r) { return lg(Math.max(r.implied, 1)); });
+    var x0 = Math.floor(Math.min.apply(null, xs)), x1 = Math.ceil(Math.max.apply(null, xs));
+    var y0 = Math.floor(Math.min.apply(null, ys)), y1 = Math.ceil(Math.max.apply(null, ys));
+    if (x1 - x0 < 3) x1 = x0 + 3;
+    if (y1 - y0 < 2) y1 = y0 + 2;
+
+    var sx = function (v) { return m.l + ((v - x0) / (x1 - x0)) * iw; };
+    var sy = function (v) { return m.t + ih - ((v - y0) / (y1 - y0)) * ih; };
+
+    var svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', W);
+    svg.setAttribute('height', H);
+
+    var mk = function (name, attrs, text) {
+      var n = document.createElementNS(SVG, name);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      if (text !== undefined) n.textContent = text;
+      svg.appendChild(n);
+      return n;
+    };
+
+    var label = function (x, y, text, anchor, fill, size) {
+      return mk('text', {
+        x: x, y: y, 'text-anchor': anchor || 'start', fill: fill || '#6f829a',
+        'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace', 'font-size': size || 10.5
+      }, text);
+    };
+
+    for (var dx = x0; dx <= x1; dx++) {
+      mk('line', { x1: sx(dx), y1: m.t, x2: sx(dx), y2: m.t + ih, stroke: '#18222e', 'stroke-width': 1 });
+      label(sx(dx), H - 8, compact(Math.pow(10, dx)), sx(dx) > W - m.r - 24 ? 'end' : 'middle');
+    }
+    for (var dy = y0; dy <= y1; dy++) {
+      mk('line', { x1: m.l, y1: sy(dy), x2: m.l + iw, y2: sy(dy), stroke: '#18222e', 'stroke-width': 1 });
+      label(m.l - 9, sy(dy) + 3.5, compact(Math.pow(10, dy)), 'end');
+    }
+
+    // iso-multiple diagonals: implied = tvl x m  =>  y = x + log10(m)
+    [0.1, 0.25, 0.5, 1].forEach(function (mo) {
+      var off = lg(mo);
+      var xa = Math.max(x0, y0 - off), xb = Math.min(x1, y1 - off);
+      if (xb <= xa) return;
+      mk('line', {
+        x1: sx(xa), y1: sy(xa + off), x2: sx(xb), y2: sy(xb + off),
+        stroke: '#2a3849', 'stroke-width': 1, 'stroke-dasharray': '4 4'
+      });
+      label(sx(xb) - 3, sy(xb + off) - 5, mult(mo), 'end', '#43586f', 10);
+    });
+
+    var maxImplied = Math.max.apply(null, rows.map(function (r) { return r.implied; }));
+    rows.forEach(function (r) {
+      var cx = sx(lg(Math.max(r.tvl, 1))), cy = sy(lg(Math.max(r.implied, 1)));
+      var rad = 2.4 + 3.2 * Math.sqrt(r.implied / maxImplied);
+      var g = document.createElementNS(SVG, 'g');
+      g.setAttribute('class', 'dot');
+      var c = document.createElementNS(SVG, 'circle');
+      c.setAttribute('cx', cx); c.setAttribute('cy', cy);
+      c.setAttribute('r', (r.watch ? rad + 1.3 : rad).toFixed(2));
+      c.setAttribute('fill', r.watch ? '#f5b83d' : '#5f92c4');
+      c.setAttribute('fill-opacity', r.watch ? '0.85' : '0.5');
+      c.setAttribute('stroke', r.watch ? '#f5b83d' : '#5f92c4');
+      c.setAttribute('stroke-opacity', '0.9');
+      c.setAttribute('stroke-width', '0.8');
+      g.appendChild(c);
+      var tip = document.createElementNS(SVG, 'title');
+      tip.textContent = r.name + ' \u2014 ' + compact(r.tvl) + ' TVL, ' + compact(r.implied) + ' implied';
+      g.appendChild(tip);
+      g.addEventListener('click', function () { state.detail = r.slug; render(); });
+      svg.appendChild(g);
+    });
+
+    host.appendChild(svg);
+
+    var head = $('charthead');
+    head.textContent = '';
+    var left = el('span');
+    left.appendChild(el('b', null, 'Size against implied value'));
+    left.appendChild(document.createTextNode(' \u00b7 a dot above a diagonal is worth more than that multiple of its TVL'));
+    head.appendChild(left);
+    var right = el('span', 'legend');
+    right.appendChild(el('i', 'k', ''));
+    right.appendChild(document.createTextNode('watchlist '));
+    right.appendChild(el('i', 'b', ''));
+    right.appendChild(document.createTextNode('below the floor \u00b7 ' + rows.length + ' plotted'));
+    head.appendChild(right);
+  }
 
   /* ── filters ─────────────────────────────────────────────────────── */
 
@@ -191,16 +286,15 @@
   function drawRail() {
     var rail = $('rail');
     rail.textContent = '';
-
-    var watch = el('div');
-    watch.appendChild(el('h2', null, 'Scope'));
+    var scope = el('div');
+    scope.appendChild(el('h2', null, 'Scope'));
     var wb = el('button', 'chip' + (state.watch ? ' on' : ''));
     wb.type = 'button';
     wb.appendChild(el('span', null, 'Watchlist only'));
     wb.appendChild(el('i', null, String(R.counts.watchlist)));
     wb.addEventListener('click', function () { state.watch = !state.watch; render(); });
-    watch.appendChild(wb);
-    rail.appendChild(watch);
+    scope.appendChild(wb);
+    rail.appendChild(scope);
 
     rail.appendChild(chipGroup('Category', counts('category'), state.cats, 9, function (k) {
       state.cats[k] = !state.cats[k];
@@ -237,7 +331,7 @@
     { key: 'chg', label: '7d flow', cls: 's r' },
     { key: 'ratio', label: 'Mult', cls: 's r' },
     { key: 'implied', label: 'Implied token value', cls: 's r' },
-    { key: 'age', label: 'Record', cls: 's r' },
+    { key: 'age', label: 'Record', cls: 's r' }
   ];
 
   function drawHead() {
@@ -249,11 +343,8 @@
       if (c.key) {
         if (state.sort === c.key) {
           s.classList.add('on');
-          s.appendChild(el('span', null, state.dir === 'asc' ? '↑' : '↓'));
-          s.addEventListener('click', function () {
-            state.dir = state.dir === 'asc' ? 'desc' : 'asc';
-            render();
-          });
+          s.appendChild(el('span', null, state.dir === 'asc' ? '\u2191' : '\u2193'));
+          s.addEventListener('click', function () { state.dir = state.dir === 'asc' ? 'desc' : 'asc'; render(); });
         } else {
           s.addEventListener('click', function () {
             state.sort = c.key;
@@ -266,57 +357,40 @@
     });
   }
 
-  function drawBoard() {
-    var rows = visible();
+  function drawBoard(rows) {
     var max = 1;
     rows.forEach(function (r) { if (r.implied > max) max = r.implied; });
-
     var host = $('rows');
     host.textContent = '';
-
-    if (rows.length === 0) {
-      var none = el('div', 'foot-note');
-      none.textContent = 'No protocol matches these filters. Clear one and the board returns.';
-      host.appendChild(none);
+    if (!rows.length) {
+      host.appendChild(el('div', 'foot-note', 'No protocol matches these filters. Clear one and the board returns.'));
       return;
     }
-
     var frag = document.createDocumentFragment();
     rows.forEach(function (r) {
       var b = el('button', 'row' + (r.watch ? ' watch' : '') + (state.detail === r.slug ? ' sel' : ''));
       b.type = 'button';
-
       b.appendChild(el('span', 'rank', String(r.rank)));
-
       var who = el('span', 'who');
       who.appendChild(el('b', null, r.name));
       var sub = el('span');
       sub.appendChild(el('em', null, r.category || 'Uncategorised'));
-      sub.appendChild(document.createTextNode(' · ' + r.chains.slice(0, 3).join(' / ') + (r.chains.length > 3 ? ' +' + (r.chains.length - 3) : '')));
+      sub.appendChild(document.createTextNode(' \u00b7 ' + r.chains.slice(0, 3).join(' / ') + (r.chains.length > 3 ? ' +' + (r.chains.length - 3) : '')));
       who.appendChild(sub);
       b.appendChild(who);
-
       b.appendChild(el('span', 'n', compact(r.tvl)));
-
       var flow = el('span', 'pill ' + (r.chg === null ? '' : r.chg >= 0 ? 'up' : 'down'));
-      flow.textContent = (r.chg === null ? '·' : (r.chg >= 0 ? '▲ ' : '▼ ') + Math.abs(r.chg).toFixed(1) + '%');
+      flow.textContent = r.chg === null ? '\u00b7' : (r.chg >= 0 ? '\u25b2 ' : '\u25bc ') + Math.abs(r.chg).toFixed(1) + '%';
       b.appendChild(flow);
-
       b.appendChild(el('span', 'mult', mult(r.implied / Math.max(r.tvl, 1))));
-
       var bar = el('span', 'bar');
       bar.style.setProperty('--w', Math.max(4, Math.round((r.implied / max) * 100)) + '%');
       bar.appendChild(el('span', null, compact(r.implied)));
       b.appendChild(bar);
-
       var bandCol = el('span', 'bandcol');
       bandCol.appendChild(el('span', 'bnd ' + r.band, r.band.replace('-', ' ')));
       b.appendChild(bandCol);
-
-      b.addEventListener('click', function () {
-        state.detail = state.detail === r.slug ? null : r.slug;
-        render();
-      });
+      b.addEventListener('click', function () { state.detail = state.detail === r.slug ? null : r.slug; render(); });
       frag.appendChild(b);
     });
     host.appendChild(frag);
@@ -324,23 +398,24 @@
 
   /* ── trading-now view ────────────────────────────────────────────── */
 
+  function noChart() {
+    $('chart').textContent = '';
+    $('charthead').textContent = '';
+    $('chartwrap').style.display = 'none';
+  }
+
   function drawLive() {
-    var host = $('rows');
-    host.textContent = '';
+    noChart();
     var head = $('thead');
     head.textContent = '';
-    var cols = [
-      { key: null, label: '#', cls: 'r' },
-      { key: null, label: 'Protocol whose token already trades', cls: '' },
-      { key: null, label: 'Market cap', cls: 'r' },
-      { key: null, label: 'TVL', cls: 'r' },
-      { key: null, label: 'Cap / TVL', cls: 'r' },
-      { key: null, label: '7d flow', cls: 'r' },
-    ];
-    cols.forEach(function (c) {
-      head.appendChild(el('span', c.cls, c.label));
-    });
+    [
+      { label: '#', cls: 'r' }, { label: 'Protocol whose token already trades', cls: '' },
+      { label: 'Market cap', cls: 'r' }, { label: 'TVL', cls: 'r' },
+      { label: 'Cap / TVL', cls: 'r' }, { label: '7d flow', cls: 'r' }
+    ].forEach(function (c) { head.appendChild(el('span', c.cls, c.label)); });
 
+    var host = $('rows');
+    host.textContent = '';
     var frag = document.createDocumentFragment();
     R.live.forEach(function (r, i) {
       var b = el('button', 'row');
@@ -350,33 +425,33 @@
       who.appendChild(el('b', null, r.name));
       var sub = el('span');
       sub.appendChild(el('em', null, r.category || 'Uncategorised'));
-      sub.appendChild(document.createTextNode(' · ' + r.chains.slice(0, 3).join(' / ')));
+      sub.appendChild(document.createTextNode(' \u00b7 ' + r.chains.slice(0, 3).join(' / ')));
       who.appendChild(sub);
       b.appendChild(who);
-      b.appendChild(el('span', 'n big', compact(r.mcap_usd)));
+      b.appendChild(el('span', 'n', compact(r.mcap_usd)));
       b.appendChild(el('span', 'n', compact(r.tvl_usd)));
       b.appendChild(el('span', 'mult', mult(r.ratio)));
       var flow = el('span', 'pill ' + (r.change_7d === null ? '' : r.change_7d >= 0 ? 'up' : 'down'));
-      flow.textContent = r.change_7d === null ? '·' : pct(r.change_7d);
+      flow.textContent = r.change_7d === null ? '\u00b7' : pct(r.change_7d);
       b.appendChild(flow);
       b.appendChild(el('span'));
       frag.appendChild(b);
     });
     host.appendChild(frag);
-    $('footnote').textContent = 'These protocols already trade. A launch radar ranks them apart: their value is the market\u2019s own, and the board\u2019s job is the ones still to come. Market cap and TVL both read from the same sealed snapshot.';
+    $('footnote').textContent = 'These ' + R.live.length + ' already trade, the largest by market cap: the market has priced them, so the radar ranks them apart from the ' + R.counts.launchable + ' still to come, and uses their market-cap-to-TVL ratios as the multiples the board applies.';
   }
 
-  /* ── sectors view ────────────────────────────────────────────────── */
+  /* ── multiples view ──────────────────────────────────────────────── */
 
   function drawSectors() {
+    noChart();
     $('thead').textContent = '';
     var host = $('rows');
     host.textContent = '';
     var wrap = el('div', 'sectors');
     var head = el('div', 'srow');
-    ['Category', 'Multiple', 'Peers', 'Largest trading members'].forEach(function (t, i) {
-      var n = el(i === 0 ? 'b' : i === 3 ? 'ex' : i === 1 ? 'm' : 'p', null, t);
-      head.appendChild(n);
+    ['Category', 'Multiple', 'Trading peers', 'Largest trading members, and their own cap/TVL'].forEach(function (t, i) {
+      head.appendChild(el(i === 0 ? 'b' : i === 3 ? 'ex' : i === 1 ? 'm' : 'p', null, t));
     });
     wrap.appendChild(head);
     R.sectors.forEach(function (s) {
@@ -384,67 +459,72 @@
       row.appendChild(el('b', null, s.category));
       row.appendChild(el('div', 'm', mult(s.multiple)));
       row.appendChild(el('div', 'p', String(s.peers)));
-      row.appendChild(el('div', 'ex', s.examples.length ? s.examples.map(function (e) { return e.name + ' ' + mult(e.ratio); }).join('  ·  ') : s.basis));
+      row.appendChild(el('div', 'ex', s.examples.length ? s.examples.map(function (e) { return e.name + ' ' + mult(e.ratio); }).join('  \u00b7  ') : s.basis));
       wrap.appendChild(row);
     });
     host.appendChild(wrap);
-    $('footnote').textContent = 'Each category\u2019s multiple is the median market-cap-to-TVL ratio of the protocols in it whose token already trades \u2014 the snapshot\u2019s own market, not an assumption. A category with fewer than three trading members borrows the whole snapshot\u2019s median.';
+    $('footnote').textContent = 'Every multiple is measured, not assumed: it is the median market-cap-to-TVL ratio of the protocols in that category whose token already trades, read from the same snapshot. A category with fewer than three trading members borrows the whole snapshot\u2019s median.';
   }
 
   /* ── detail drawer ───────────────────────────────────────────────── */
+
+  function stepLine(label, value, op, total) {
+    var n = el('div', 'step' + (op ? ' op' : '') + (total ? ' total' : ''));
+    n.appendChild(el('span', null, label));
+    n.appendChild(el('b', null, value));
+    return n;
+  }
+
+  function peerRow(name, mcap, tvl, ratio) {
+    var n = el('div');
+    n.appendChild(el('span', null, name));
+    n.appendChild(el('i', null, mcap ? mcap + ' / ' + tvl : ''));
+    n.appendChild(el('b', null, ratio));
+    return n;
+  }
 
   function drawDrawer() {
     var d = $('drawer');
     d.textContent = '';
     var row = null;
     for (var i = 0; i < R.rows.length; i++) if (R.rows[i].slug === state.detail) row = R.rows[i];
-    if (!row) {
-      d.textContent = '';
-      return;
-    }
+    if (!row) return;
 
     var bar = el('div', 'dbar');
     bar.appendChild(el('span', null, 'Protocol dossier'));
     var close = el('button', null, 'Close  esc');
     close.type = 'button';
-    close.addEventListener('click', function () {
-      state.detail = null;
-      render();
-    });
+    close.addEventListener('click', function () { state.detail = null; render(); });
     bar.appendChild(close);
     d.appendChild(bar);
 
     var head = el('div', 'd-head');
     var kick = el('div', 'kicker');
     kick.appendChild(el('span', null, 'rank ' + row.rank + ' of ' + R.rows.length));
-    if (row.watch) kick.appendChild(el('span', null, '· on the watchlist'));
+    kick.appendChild(el('span', null, row.watch ? '\u00b7 on the watchlist' : '\u00b7 below the floor'));
     head.appendChild(kick);
     head.appendChild(el('h1', null, row.name));
-    var meta = el('div', 'meta');
-    meta.textContent = (row.category || 'Uncategorised') + ' · ' + row.chains.join(' / ');
-    head.appendChild(meta);
+    head.appendChild(el('div', 'meta', (row.category || 'Uncategorised') + ' \u00b7 ' + row.chains.join(' / ')));
     var meta2 = el('div', 'meta');
     meta2.appendChild(document.createTextNode('TVL '));
-    var b1 = el('b', null, full(row.tvl));
-    meta2.appendChild(b1);
-    meta2.appendChild(document.createTextNode(' · 7d ' + pct(row.chg) + ' · ' + days(row.age) + (row.listed ? ' (tracked since ' + row.listed + ')' : '')));
+    meta2.appendChild(el('b', null, full(row.tvl)));
+    meta2.appendChild(document.createTextNode(' \u00b7 7d ' + pct(row.chg) + ' \u00b7 ' + days(row.age) + (row.listed ? ' (tracked since ' + row.listed + ')' : '')));
     head.appendChild(meta2);
     d.appendChild(head);
 
-    var why = el('p', 'why', row.why);
-    d.appendChild(why);
+    d.appendChild(el('p', 'why', row.why));
 
     var vb = el('div', 'value-block');
     vb.appendChild(el('div', 'lbl', 'Implied token value'));
     vb.appendChild(el('div', 'v', full(row.implied)));
-    vb.appendChild(el('div', 'sub', 'if ' + row.name + '\u2019s record stood still: TVL × the trading multiple of its category × its flow × its record'));
+    vb.appendChild(el('div', 'sub', 'if ' + row.name + '\u2019s record stood still: TVL \u00d7 the trading multiple of its category \u00d7 its flow \u00d7 its record'));
     d.appendChild(vb);
 
     var der = el('div', 'derive');
     der.appendChild(stepLine('TVL at the snapshot block', full(row.tvl), false));
-    der.appendChild(stepLine('× ' + (row.category || 'every category') + ' multiple, ' + row.sectorBasis, mult(row.sector), true));
-    der.appendChild(stepLine('× flow, TVL over seven days at ' + pct(row.chg), mult(row.growth), true));
-    der.appendChild(stepLine('× record, ' + days(row.age), mult(row.maturity), true));
+    der.appendChild(stepLine('\u00d7 ' + (row.category || 'every category') + ' multiple, ' + row.sectorBasis, mult(row.sector), true));
+    der.appendChild(stepLine('\u00d7 flow, TVL over seven days at ' + pct(row.chg), mult(row.growth), true));
+    der.appendChild(stepLine('\u00d7 record, ' + days(row.age), mult(row.maturity), true));
     der.appendChild(stepLine('implied token value', full(row.implied), false, true));
     d.appendChild(der);
 
@@ -456,9 +536,7 @@
     var sector = null;
     for (var s = 0; s < R.sectors.length; s++) if (R.sectors[s].category === (row.category || '')) sector = R.sectors[s];
     if (sector && sector.examples.length) {
-      sector.examples.forEach(function (x) {
-        peers.appendChild(peerRow(x.name, compact(x.mcap_usd), compact(x.tvl_usd), mult(x.ratio)));
-      });
+      sector.examples.forEach(function (x) { peers.appendChild(peerRow(x.name, compact(x.mcap_usd), compact(x.tvl_usd), mult(x.ratio))); });
     } else {
       var world = R.sectors[R.sectors.length - 1];
       var line = el('div');
@@ -478,8 +556,7 @@
       var li = el('li');
       li.appendChild(document.createTextNode(s.text));
       var t = el('div', 't');
-      var c = el('i', 'c', s.cost);
-      t.appendChild(c);
+      t.appendChild(el('i', 'c', s.cost));
       t.appendChild(el('i', null, s.time));
       li.appendChild(t);
       plan.appendChild(li);
@@ -495,24 +572,7 @@
     total.appendChild(t2);
     d.appendChild(total);
 
-    var note = el('div', 'note');
-    note.textContent = 'It records no token: DefiLlama\u2019s record carries neither a ticker nor a coin id for it. That is not proof none exists \u2014 a record can lag. Implied value ranks what its figures would be worth today, and says nothing about whether or when a token is issued.';
-    d.appendChild(note);
-  }
-
-  function stepLine(label, value, op, total) {
-    var n = el('div', 'step' + (op ? ' op' : '') + (total ? ' total' : ''));
-    n.appendChild(el('span', null, label));
-    n.appendChild(el('b', null, value));
-    return n;
-  }
-
-  function peerRow(name, mcap, tvl, ratio) {
-    var n = el('div');
-    n.appendChild(el('span', null, name));
-    n.appendChild(el('i', null, mcap ? mcap + ' / ' + tvl : ''));
-    n.appendChild(el('b', null, ratio));
-    return n;
+    d.appendChild(el('div', 'note', 'It records no token: the snapshot carries neither a ticker nor a coin id for it. That is not proof none exists \u2014 a record can lag. Implied value ranks what its figures would be worth today; it says nothing about whether or when a token is issued, and it is this entry\u2019s own claim, not make.fun\u2019s.'));
   }
 
   /* ── footer + wire-up ────────────────────────────────────────────── */
@@ -520,14 +580,13 @@
   function drawFormula() {
     var f = $('formula');
     f.textContent = '';
-    var parts = [
-      ['implied value', 'TVL × sector multiple × flow × record'],
+    [
+      ['implied value', 'TVL \u00d7 sector multiple \u00d7 flow \u00d7 record'],
       ['sector multiple', 'median cap/TVL of that category\u2019s trading protocols'],
-      ['flow', '1 + 0.5 × 7d change, clamped to −60% … +120%'],
-      ['record', '0.55 + 0.45 × (1 − e^−age/500d): a proven, long token-less run'],
-      ['source', R.source],
-    ];
-    parts.forEach(function (p) {
+      ['flow', '1 + 0.5 \u00d7 7d change, clamped to \u221260% \u2026 +120%'],
+      ['record', '0.55 + 0.45 \u00d7 (1 \u2212 e^\u2212age/500d)'],
+      ['source', R.source]
+    ].forEach(function (p) {
       var s = el('span');
       s.appendChild(el('b', null, p[0] + ': '));
       s.appendChild(document.createTextNode(p[1]));
@@ -536,33 +595,37 @@
   }
 
   function render() {
-    var stage = $('stage');
     var open = state.detail !== null && state.view === 'board';
     document.querySelector('.shell').classList.toggle('wide', !open);
     document.querySelectorAll('.switch button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.view === state.view);
     });
+    $('chartwrap').style.display = '';
+    drawHero();
+
     if (state.view === 'live') {
       drawLive();
     } else if (state.view === 'sectors') {
       drawSectors();
     } else {
+      var rows = visible();
+      drawChart(rows);
       drawHead();
-      drawBoard();
+      drawBoard(rows);
       var f = $('footnote');
       f.textContent = '';
-      f.appendChild(el('b', null, String(visible().length)));
+      f.appendChild(el('b', null, String(rows.length)));
       f.appendChild(document.createTextNode(
-        ' of ' + R.rows.length + ' ranked rows · ' + R.counts.watchlist + ' watchlist protocols covered · ' +
-        'every protocol that records no token, at any size, ranked by what its token would be worth · ' +
-        'pick a row for its derivation and farm plan'
+        ' of ' + R.rows.length + ' ranked rows \u00b7 ' + R.counts.watchlist + ' watchlist protocols covered \u00b7 '
+        + 'every protocol that records no token, at any size, ranked by what its token would be worth \u00b7 '
+        + 'pick a row or a dot for its derivation and farm plan'
       ));
     }
     drawDrawer();
     drawRail();
     drawHeader();
     writeUrl();
-    stage.focus({ preventScroll: true });
+    $('stage').focus({ preventScroll: true });
   }
 
   function boot() {
@@ -571,24 +634,18 @@
       return;
     }
     readUrl();
-    $('q').addEventListener('input', function (e) {
-      state.q = e.target.value;
-      render();
-    });
+    $('q').addEventListener('input', function (e) { state.q = e.target.value; render(); });
     document.querySelectorAll('.switch button').forEach(function (b) {
-      b.addEventListener('click', function () {
-        state.view = b.dataset.view;
-        render();
-      });
+      b.addEventListener('click', function () { state.view = b.dataset.view; render(); });
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && state.detail) {
-        state.detail = null;
-        render();
-      } else if (e.key === '/' && document.activeElement !== $('q')) {
-        e.preventDefault();
-        $('q').focus();
-      }
+      if (e.key === 'Escape' && state.detail) { state.detail = null; render(); }
+      else if (e.key === '/' && document.activeElement !== $('q')) { e.preventDefault(); $('q').focus(); }
+    });
+    var t = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(t);
+      t = setTimeout(function () { if (state.view === 'board') render(); }, 120);
     });
     if (state.q) $('q').value = state.q;
     drawFormula();

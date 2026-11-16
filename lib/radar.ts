@@ -115,6 +115,8 @@ export interface Radar {
     rows: number;
     live: number;
     categories: number;
+    watchlist_tvl: number;
+    below_floor: number;
   };
   sectors: Sector[];
   rows: {
@@ -472,8 +474,7 @@ export function buildBoard(snapshot: Snapshot, model: Model = MODEL): { rows: Ro
   const sectors = sectorTable(snapshot.protocols);
   const world = sectors.get('__world')!;
   const watch = new Set(snapshot.watchlist);
-  const scored: Row[] = [];
-  for (const p of snapshot.protocols) {
+  const scored: Row[] = [];  for (const p of snapshot.protocols) {
     if (!launchable(p)) continue;
     const age = ageDays(snapshot.as_of, p.listed_at);
     const sector = p.category !== null ? sectors.get(p.category) : undefined;
@@ -510,6 +511,9 @@ export function buildBoard(snapshot: Snapshot, model: Model = MODEL): { rows: Ro
   for (const [, sector] of sectors) if (sector.category !== 'all categories') kept.push(sector);
   kept.sort((a, b) => b.multiple - a.multiple);
   kept.push(world);
+  let watchTvl = 0;
+  for (const p of snapshot.protocols) if (watch.has(p.slug)) watchTvl += p.tvl_usd;
+  const belowFloor = scored.filter((r) => !r.watchlist).length;
   return {
     rows,
     sectors: kept,
@@ -521,6 +525,8 @@ export function buildBoard(snapshot: Snapshot, model: Model = MODEL): { rows: Ro
       rows: rows.length,
       live: 0,
       categories: kept.length - 1,
+      watchlist_tvl: watchTvl,
+      below_floor: belowFloor,
     },
   };
 }
@@ -550,6 +556,7 @@ export function buildRadar(snapshot: Snapshot, model: Model = MODEL): { rows: Ro
   const { rows, sectors, counts } = buildBoard(snapshot, model);
   const live = liveRows(snapshot);
   const bySector = new Map(sectors.map((s) => [s.category, s]));
+  const trading = snapshot.protocols.filter((p) => p.mcap_usd !== null && p.mcap_usd > 0).length;
   return {
     rows,
     radar: {
@@ -557,7 +564,7 @@ export function buildRadar(snapshot: Snapshot, model: Model = MODEL): { rows: Ro
       source: snapshot.source.replace(/https?:\/\/\S+/g, 'DefiLlama'),
       floor_usd: snapshot.floor_usd,
       model,
-      counts: { ...counts, live: live.length },
+      counts: { ...counts, live: trading },
       sectors,
       rows: rows.map((r) => ({
         rank: r.rank,
