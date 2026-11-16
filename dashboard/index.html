@@ -3,48 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar — every token-less protocol, ranked by implied value</title>
+<title>Token Radar — what a token would be worth, for the protocols that have none</title>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<header class="top">
-  <div class="brand">
-    <span class="mark" aria-hidden="true"></span>
-    <span class="wordmark">TOKEN<b>RADAR</b></span>
-    <span class="tag" id="tag">radar-2.1</span>
+
+<header class="hud">
+  <div class="ident">
+    <span class="ping" aria-hidden="true"></span>
+    <span class="logotype">TOKEN<b>RADAR</b></span>
+    <span class="build" id="build">radar</span>
   </div>
-  <dl class="stats" id="stats"></dl>
-  <div class="tools">
-    <label class="search">
-      <span class="lbl">FIND</span>
-      <input id="q" type="search" placeholder="protocol, category, chain" autocomplete="off" spellcheck="false" aria-label="Search protocols">
+  <dl class="ledger" id="ledger"></dl>
+  <div class="controls">
+    <label class="seek">
+      <span class="cap">Sieve</span>
+      <input id="q" type="search" placeholder="protocol, category, chain" autocomplete="off" spellcheck="false" aria-label="Sieve the board">
     </label>
-    <nav class="switch" id="views" aria-label="View">
+    <nav class="tabs" id="tabs" aria-label="Which board">
       <button type="button" data-view="board" class="on">Board</button>
-      <button type="button" data-view="live">Trading now</button>
+      <button type="button" data-view="live">Already trading</button>
       <button type="button" data-view="sectors">Multiples</button>
     </nav>
   </div>
 </header>
 
-<div class="shell">
-  <aside class="rail" id="rail" aria-label="Filters"></aside>
+<div class="frame" id="frame">
+  <aside class="filters" id="filters" aria-label="Sieve the board"></aside>
 
-  <main class="stage" id="stage" tabindex="-1">
-    <section class="hero" id="hero" aria-label="What the snapshot says"></section>
-    <section class="chartwrap" id="chartwrap" aria-label="Size against implied value">
-      <div class="charthead" id="charthead"></div>
-      <div class="chart" id="chart"></div>
+  <main class="board" id="board" tabindex="-1">
+    <section class="tiles" id="tiles" aria-label="The snapshot in four numbers"></section>
+    <section class="plot" id="plotwrap" aria-label="Size against implied value">
+      <div class="plothd" id="plothd"></div>
+      <div class="plottarget" id="plot"></div>
     </section>
-    <div class="thead" id="thead"></div>
-    <div class="rows" id="rows" aria-live="polite"></div>
-    <div class="foot-note" id="footnote"></div>
+    <div class="cols" id="cols"></div>
+    <div class="lines" id="lines" aria-live="polite"></div>
+    <div class="tail" id="tail"></div>
   </main>
 
-  <aside class="drawer" id="drawer" aria-label="Protocol detail"></aside>
+  <aside class="sheet" id="sheet" aria-label="Brief"></aside>
 </div>
 
-<footer class="formula" id="formula"></footer>
+<footer class="colophon" id="colophon"></footer>
 
 <script src="../data.js"></script>
 <script src="app.js"></script>

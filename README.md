@@ -4,7 +4,9 @@
 [![rank](https://make.fun/badge/token-radar-01/stephenzhao2024/token-radar/rank.svg)](https://make.fun/bounty/token-radar-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
 [![reward](https://make.fun/badge/token-radar-01/stephenzhao2024/token-radar/reward.svg)](https://make.fun/bounty/token-radar-01?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
 
-A launch radar for protocols that record no token yet: it ranks every one of them by what a token would be worth if the protocol's record stood still, deriving the number from the sealed DefiLlama snapshot alone — the protocol's TVL, the median market-cap-to-TVL multiple of the protocols in its own category that already trade, its seven-day flow and how long it has run token-less — and gives each one a farm plan costed in dollars and minutes.
+A launch radar for protocols that record no token yet: it ranks every one of them by what a token would be worth if the protocol's record stood still, and it prices that from the sealed DefiLlama snapshot alone. The price is a power law over TVL, fitted to the protocols whose token already trades, then carried by three measured factors — how the protocol's category trades against that curve, its seven-day flow, and how long it has run token-less — and the whole thing is fitted again with each trading token held out in turn, so every row carries a P10-to-P90 range from that blind miss rather than a point estimate. Each row also gets a farm plan costed in dollars and minutes, and a net verdict on a $1,000 ticket after gas and the yield the capital forgoes.
+
+The page shows its own working: the curve and its coefficients, the factor table, the blind-test comparison against five alternatives, the scatter of TVL against implied value, and the net of every plan.
 
 ## Run it
 
